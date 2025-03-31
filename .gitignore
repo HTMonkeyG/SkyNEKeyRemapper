@@ -1,0 +1,8 @@
+/dist/
+/.vscode/
+
+*.dll
+*.a
+*.o
+*.res
+*.rc
