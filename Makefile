@@ -1,7 +1,7 @@
 DIST_DIR = dist
 SRC_DIR = ./src
 DLL_DIR = ./src/dll
- 
+
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(DIST_DIR)/%.o, $(notdir $(SRC))) $(SRC_DIR)/MinHook/libMinHook.a
 
@@ -9,7 +9,7 @@ TARGET = main.dll
 BIN_TARGET = $(DIST_DIR)/$(TARGET)
 
 CC = gcc
-PARAM = -O3 -flto -fomit-frame-pointer
+PARAM = -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
 
 $(BIN_TARGET): $(OBJ)
 	$(CC) $(PARAM) $(OBJ) -shared -o $@ -lpsapi -lws2_32
