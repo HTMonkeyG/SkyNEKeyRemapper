@@ -12,7 +12,7 @@ CC = gcc
 PARAM = -O3 -flto -fomit-frame-pointer
 
 $(BIN_TARGET): $(OBJ)
-	$(CC) $(PARAM) $(OBJ) -shared -Wl,--kill-at,--out-implib,libmydll.a -o $@ -lpsapi -lws2_32
+	$(CC) $(PARAM) $(OBJ) -shared -o $@ -lpsapi -lws2_32
 
 $(DIST_DIR)/dllmain.o: $(SRC_DIR)/dllmain.c
 	$(CC) $(PARAM) -c $(SRC_DIR)/dllmain.c -DBUILD_DLL -o $(DIST_DIR)/dllmain.o
