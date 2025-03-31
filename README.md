@@ -4,6 +4,8 @@
 ## 使用方式
 &emsp;**本软件涉及到DLL注入与Inline Hook技术，可能引起游戏运行不稳定、掉帧等情况，请谨慎使用。**
 
+&emsp;本软件将持续提供支持，直至网易官方支持键位修改。
+
 &emsp;下载[release/latest](https://github.com/HTMonkeyG/SkyNEKeyRemapper/releases/latest)中最新版本dll，并使用任一dll注入工具将其注入进光遇进程内。
 也可下载压缩包（不是source code）并解压后**管理员权限运行**``start.bat``。
 
