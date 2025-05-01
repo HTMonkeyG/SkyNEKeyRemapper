@@ -5,11 +5,11 @@ DLL_DIR = ./src/dll
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(patsubst %.c, $(DIST_DIR)/%.o, $(notdir $(SRC))) $(SRC_DIR)/MinHook/libMinHook.a
 
-TARGET = main.dll
+TARGET = sky-key.dll
 BIN_TARGET = $(DIST_DIR)/$(TARGET)
 
 CC = gcc
-PARAM = -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
+PARAM = -Wall -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
 
 $(BIN_TARGET): $(OBJ)
 	$(CC) $(PARAM) $(OBJ) -shared -o $@ -lpsapi -lws2_32
