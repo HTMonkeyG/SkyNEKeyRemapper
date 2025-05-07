@@ -11,3 +11,8 @@ typedef struct {
 
 void modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme);
 int buildSchemeFrom(FILE *file, KeyRemapScheme *scheme);
+void getAllFilesSorted(
+  const wchar_t *fileName,
+  WIN32_FIND_DATAW **result,
+  u32 *resultLen
+);

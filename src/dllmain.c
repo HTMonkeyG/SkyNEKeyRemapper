@@ -199,37 +199,34 @@ static void switchState() {
 
 /** Switch to next scheme. */
 static void switchScheme() {
-  HANDLE hFind;
-  WIN32_FIND_DATAW findData;
+  WIN32_FIND_DATAW *allFiles;
   wchar_t path[MAX_PATH * 2];
   FILE *fd;
   KeyRemapScheme temp;
   i08 found = 0;
+  u32 fileAmount;
 
   wcscpy(path, schemeFolder);
   wcscat(path, L"*.txt");
-  hFind = FindFirstFileW(path, &findData);
-  if (!hFind)
-    return;
-  else do {
-    if (
-      !wcscmp(findData.cFileName, L".")
-      || !wcscmp(findData.cFileName, L"..")
-    )
-      continue;
+  // Get all .txt files in schemes/ folder.
+  getAllFilesSorted(path, &allFiles, &fileAmount);
+  if (!allFiles)
+    // No .txt file, set to default.
+    goto SetDefault;
+  else for (u32 i = 0; i < fileAmount; i++) {
     if (!wcscmp(currentSchemeName, SCHEME_DEFAULT)) {
-      // If default, then select the first file.
-      wcscpy(currentSchemeName, findData.cFileName);
+      // If current scheme is the default, then select the first file.
+      wcscpy(currentSchemeName, allFiles[i].cFileName);
       goto SetScheme;
-    } else if (wcscmp(currentSchemeName, findData.cFileName)) {
-      // Found current file, prepared for next file.
+    } else if (!wcscmp(currentSchemeName, allFiles[i].cFileName)) {
+      // Find current file, and prepare to select the next file.
       found = 1;
       continue;
     }
     if (found) {
       // Choose the next file of current scheme.
 SetScheme:
-      wcscpy(currentSchemeName, findData.cFileName);
+      wcscpy(currentSchemeName, allFiles[i].cFileName);
       wcscpy(path, schemeFolder);
       wcscat_s(path, MAX_PATH, currentSchemeName);
       fd = _wfopen(path, L"r");
@@ -241,7 +238,8 @@ SetScheme:
       hookEnabled = 1;
       return;
     }
-  } while (FindNextFileW(hFind, &findData));
+  }
+SetDefault:
   // If no match or current file is the last file, then set to default.
   wcscpy(currentSchemeName, SCHEME_DEFAULT);
   currentScheme = &defaultScheme;
