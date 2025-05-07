@@ -12,7 +12,7 @@ CC = gcc
 PARAM = -Wall -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
 
 $(BIN_TARGET): $(OBJ)
-	$(CC) $(PARAM) $(OBJ) -shared -o $@ -lpsapi -lws2_32
+	$(CC) $(PARAM) $(OBJ) -shared -o $@ -lpsapi -lws2_32 -lshlwapi
 
 $(DIST_DIR)/dllmain.o: $(SRC_DIR)/dllmain.c
 	$(CC) $(PARAM) -c $(SRC_DIR)/dllmain.c -DBUILD_DLL -o $(DIST_DIR)/dllmain.o
@@ -25,5 +25,7 @@ $(SRC_DIR)/MinHook/libMinHook.a:
 
 clean:
 	del .\dist\*.o
-	del .\dist\main.dll
+	del .\dist\$(TARGET)
+
+clean_all: clean
 	make -C $(SRC_DIR)/MinHook/ clean
