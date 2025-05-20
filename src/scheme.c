@@ -1,12 +1,14 @@
 #include "scheme.h"
 
-void modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme) {
-  u08 scanCode, isExtended;
+i08 modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme) {
+  u08 scanCode, isExtended, result;
   u16 *config;
+
   if (!lpMsg || !scheme)
-    return;
+    return 0;
 
   if (lpMsg->message == WM_KEYDOWN || lpMsg->message == WM_KEYUP) {
+    result = lpMsg->message == WM_KEYDOWN;
     // Get scan code of the key.
     scanCode = (lpMsg->lParam & 0x00FF0000) >> 16;
     isExtended = (lpMsg->lParam & 0x01000000) >> 24;
@@ -17,13 +19,15 @@ void modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme) {
       lpMsg->lParam &= (~0x01FF0000);
       if (config[scanCode] == 0xFFFF)
         // The key is disabled, let it be zero.
-        return;
+        return result;
       // Set scan code.
       lpMsg->lParam |= (config[scanCode] & 0xFF) << 16;
       // Set extended flag.
       (config[scanCode] & 0xFF00) && (lpMsg->lParam |= 0x01000000);
     }
+    return result;
   }
+  return 0;
 }
 
 static void buildCallback(const wchar_t *key, const wchar_t *value, void *pUser) {

@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <stdio.h>
 #include "macros.h"
 
 #define VK_LMASK 0x00FF
@@ -15,4 +16,4 @@ typedef struct {
 
 i32 getKeyFromName(const wchar_t *name, const wchar_t **endp);
 i32 buildHotkeyFrom(const wchar_t *desc, Hotkey_t *hk);
-i32 registerHotkeyWith(HWND hWnd, int id, const Hotkey_t *hk);
+i32 registerHotkeyWith(HWND hWnd, i32 id, const Hotkey_t *hk);

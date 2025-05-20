@@ -1,8 +1,6 @@
 #include "keys.h"
 #include "hotkey.h"
 
-#include <stdio.h>
-
 static i32 wcsniacmp(const wchar_t *s1, const wchar_t *s2, size_t max) {
   wchar_t c1, c2, lc1, lc2;
   int ac1, ac2;
@@ -46,11 +44,11 @@ i32 getKeyFromName(const wchar_t *name, const wchar_t **endp) {
 
   m = wcslen(name) + 1;
   for (u08 i = 0; i < VK_ARRAY_LENGTH; i++) {
-    if (!ALIASES[i])
+    if (!KEYCODES[i])
       continue;
 
-    l = wcslen(ALIASES[i]) + 1;
-    if (l <= m && !wcsniacmp(ALIASES[i], name, l)) {
+    l = wcslen(KEYCODES[i]) + 1;
+    if (l <= m && !wcsniacmp(KEYCODES[i], name, l)) {
       // Bit[7:0], keycode.
       result = (i32)i & VK_LMASK;
 

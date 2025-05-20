@@ -3,7 +3,7 @@
 #define VK_ARRAY_LENGTH 166
 
 // Key names.
-static const wchar_t *ALIASES[VK_ARRAY_LENGTH] = {
+static const wchar_t *KEYCODES[VK_ARRAY_LENGTH] = {
   NULL,
   L"MB1", L"MB3",
   NULL,

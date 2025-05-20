@@ -9,7 +9,7 @@
 #include "hotkey.h"
 #include "overlay.h"
 
-#define DEBUG_CONSOLE
+//#define DEBUG_CONSOLE
 
 #ifdef DEBUG_CONSOLE
 #define log(format, ...) wprintf(format, ##__VA_ARGS__)

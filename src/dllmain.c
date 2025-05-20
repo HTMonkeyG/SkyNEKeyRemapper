@@ -2,7 +2,8 @@
 
 // Hook listeners.
 PeekMessage_t PeekMessageW_old, PeekMessageA_old;
-i08 hookEnabled = 1;
+i08 hookEnabled = 1
+  , overlayShow = 0;
 DWORD hotkeyThreadId;
 HANDLE hHotkeyThread;
 wchar_t currentSchemeName[MAX_PATH] = {0}
@@ -13,7 +14,7 @@ KeyRemapScheme defaultScheme = {0}
   , *currentScheme = NULL;
 Hotkey_t hkNext = {
     .mod = MOD_CONTROL,
-    .vk = VK_F3
+    .vk = VK_F1
   }
   , hkEnable = {
     .mod = MOD_CONTROL,
@@ -40,8 +41,13 @@ BOOL PeekMessageW_Listener(
 ) {
   BOOL result;
   result = PeekMessageW_old(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
-  if (result)
-    modifyKeyMsgWith(lpMsg, currentScheme);
+  if (result && modifyKeyMsgWith(lpMsg, currentScheme) && overlayShow) {
+    // Only when there is a real WM_KEY* message and the overlay is shown,
+    // this function will be executed once.
+    // So the performance will not be bad.
+    setOverlayShow(&overlay, SW_HIDE);
+    overlayShow = 0;
+  }
   return result;
 }
 
@@ -54,8 +60,10 @@ BOOL PeekMessageA_Listener(
 ) {
   BOOL result;
   result = PeekMessageA_old(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
-  if (result)
-    modifyKeyMsgWith(lpMsg, currentScheme);
+  if (result && modifyKeyMsgWith(lpMsg, currentScheme) && overlayShow) {
+    setOverlayShow(&overlay, SW_HIDE);
+    overlayShow = 0;
+  }
   return result;
 }
 
@@ -172,6 +180,7 @@ void switchScheme(i08 next) {
     // No .txt file, set to default.
     goto SetDefault;
   else for (u32 i = 0; i < fileAmount; i++) {
+    // Check for whether the current file is exist.
     if (isDefault)
       // If current scheme is the default, then select the first file.
       goto SetScheme;
@@ -193,9 +202,15 @@ SetScheme:
       wcscpy(path, schemeFolder);
       wcscat_s(path, MAX_PATH, currentSchemeName);
       fd = _wfopen(path, L"r");
-      if (!fd || !buildSchemeFrom(fd, &temp))
-        // Failed to read or read an empty scheme.
+
+      // Failed to read or read an empty scheme.
+      if (!fd)
         goto SetDefault;
+      if (!buildSchemeFrom(fd, &temp)) {
+        fclose(fd);
+        goto SetDefault;
+      }
+
       memcpy(&cachedScheme, &temp, sizeof(KeyRemapScheme));
       currentScheme = &cachedScheme;
       hookEnabled = 1;
@@ -216,7 +231,7 @@ void initDll(HMODULE hModule, i08 *hookEnabled) {
   wchar_t content[MAX_PATH] = {0}
     , configPath[MAX_PATH];
   FILE *fd;
-  i32 validDefaultKey = 0;
+  i32 validAmount = 0;
 
   if (!initPaths(hModule, configPath, storedDataPath, schemeFolder))
     return;
@@ -225,7 +240,7 @@ void initDll(HMODULE hModule, i08 *hookEnabled) {
   fd = _wfopen(configPath, L"r");
   if (!fd)
     return;
-  buildConfigFrom(fd, cfgCallback, (void *)&validDefaultKey);
+  buildConfigFrom(fd, cfgCallback, (void *)&validAmount);
   fclose(fd);
 
   // Open stored data.
@@ -236,7 +251,7 @@ void initDll(HMODULE hModule, i08 *hookEnabled) {
     // be used as any file name.
     wcscpy(currentSchemeName, SCHEME_DEFAULT);
     currentScheme = &defaultScheme;
-    if (!validDefaultKey)
+    if (!validAmount)
       // If default scheme is empty, then disable the remapping.
       *hookEnabled = 0;
     return;
@@ -257,6 +272,8 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   HINSTANCE hInstance = (HINSTANCE)lpParam;
   MSG msg;
   HWND gameWnd;
+  DWORD minShowTimer = 0
+    , maxShowTimer = 0;
 
   if (
     !registerHotkeyWith(NULL, 1, &hkEnable)
@@ -269,17 +286,17 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   while (GetMessageW(&msg, NULL, 0, 0)) {
     // In most cases, the game window isn't created when the dll is injected,
     // so we don't find game window in initDll().
-    gameWnd = FindWindowW(NULL, L"光·遇");
-    if (msg.message == WM_USER_EXIT) {
+    gameWnd = FindWindowW(NULL, TARGET_WND_NAME);
+    if (msg.message == WM_USER_EXIT)
       // Remove overlay window and terminate thread.
-      removeOverlay(&overlay);
       PostQuitMessage(0);
-    } else if (msg.message == WM_QUIT)
+    else if (msg.message == WM_QUIT)
       // Exit message loop.
       break;
     else if (msg.message == WM_HOTKEY && GetForegroundWindow() == gameWnd) {
       if (!overlay.window)
-        ;//createOverlay(&overlay, hInstance, gameWnd);
+        createOverlay(&overlay, hInstance, gameWnd);
+
       if (msg.wParam == 1) {
         // Enable or disable.
         switchState();
@@ -290,14 +307,33 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
         saveData();
         log(L"%s\n", currentSchemeName);
       }
-      ;//setOverlayShow(&overlay, SW_SHOWNOACTIVATE);
-      ;//updateOverlay(&overlay, allFiles, fileAmount, fileIndex, hookEnabled);
+
+      // Update overlay.
+      setOverlayShow(&overlay, SW_SHOWNOACTIVATE);
+      updateOverlay(&overlay, allFiles, fileAmount, fileIndex, hookEnabled);
+
+      // Set timers.
+      // The window will continue to display at least until this timer is
+      // triggered.
+      minShowTimer = SetTimer(NULL, minShowTimer, 500, NULL);
+      // The window will be displayed until this timer is triggered at most.
+      maxShowTimer = SetTimer(NULL, maxShowTimer, 10000, NULL);
+    } else if (msg.message == WM_TIMER) {
+      if (msg.wParam == minShowTimer) {
+        // Allow the hook to hide the overlay when any key is pressed.
+        overlayShow = 1;
+        KillTimer(NULL, minShowTimer);
+      } else if (msg.wParam == maxShowTimer) {
+        // Hide the overlay directly.
+        overlayShow = 0;
+        setOverlayShow(&overlay, SW_HIDE);
+        KillTimer(NULL, maxShowTimer);
+      }
     }
-    // Dispatch message for the overlay window.
-    TranslateMessage(&msg);
-    DispatchMessageW(&msg);
   }
 
+  // Clear resources.
+  removeOverlay(&overlay);
   UnregisterHotKey(NULL, 1);
   UnregisterHotKey(NULL, 2);
   return msg.wParam;
@@ -312,10 +348,10 @@ BOOL APIENTRY DllMain(
     // Only for debug use.
     // Attach a console window to the game process.
 #ifdef DEBUG_CONSOLE
-    //FreeConsole();
-    //AllocConsole();
-    //freopen("CONOUT$","w+t",stdout);
-    //freopen("CONIN$","r+t",stdin);
+    FreeConsole();
+    AllocConsole();
+    freopen("CONOUT$","w+t",stdout);
+    freopen("CONIN$","r+t",stdin);
 #endif
     log(L"Dll injected.\n");
 

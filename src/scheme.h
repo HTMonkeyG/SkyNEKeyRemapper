@@ -9,7 +9,7 @@ typedef struct {
   u16 extendedKeys[256];
 } KeyRemapScheme;
 
-void modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme);
+i08 modifyKeyMsgWith(LPMSG lpMsg, KeyRemapScheme *scheme);
 int buildSchemeFrom(FILE *file, KeyRemapScheme *scheme);
 void getAllFilesSorted(
   const wchar_t *fileName,

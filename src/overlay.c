@@ -48,33 +48,56 @@ static void drawTextWithShadow(
   }
 }
 
-DWORD WINAPI ovWndThread(LPVOID lpParam) {
-  MSG msg;
-  void **data = (void **)lpParam;
-  OverlayWindow *overlay = (OverlayWindow *)(data[0]);
-  HINSTANCE hInstance = (HINSTANCE)data[1];
-  HANDLE hEvent = (HANDLE)(data[2]);
+/** Move the overlay to the target window. */
+static void setOverlayPos(OverlayWindow *overlay) {
+  RECT rect;
+  int x, y, xL, yL;
+  const int WND_HEIGHT = 180;
 
-  overlay->font = CreateFontW(
-    FONT_HEIGHT,
-    0,
-    0,
-    0,
-    FW_NORMAL,
-    FALSE,
-    FALSE,
-    FALSE,
-    DEFAULT_CHARSET,
-    OUT_OUTLINE_PRECIS,
-    CLIP_DEFAULT_PRECIS,
-    NONANTIALIASED_QUALITY,
-    FIXED_PITCH | FF_MODERN,
-    L"Consolas"
-  );
+  if (!overlay || !overlay->window || !overlay->target)
+    return;
+  
+  if (
+    GetForegroundWindow() != overlay->target
+    && overlay->lastShow != SW_HIDE
+  ) {
+    setOverlayShow(overlay, SW_HIDE);
+    return;
+  }
+
+  if (GetWindowRect(overlay->target, &rect)) {
+    x = rect.left;
+    y = rect.top + (rect.bottom - rect.top - WND_HEIGHT) / 2;
+    xL = rect.right - rect.left;
+    yL = WND_HEIGHT;
+    SetWindowPos(
+      overlay->window,
+      HWND_TOPMOST,
+      x, y, xL, yL,
+      SWP_NOACTIVATE | SWP_NOREDRAW
+    );
+  }
+}
+
+static i32 tickOverlay(OverlayWindow *overlay) {
+  if (!overlay || !overlay->window)
+    return 0;
+  setOverlayPos(overlay);
+  InvalidateRect(overlay->window, NULL, FALSE);
+  UpdateWindow(overlay->window);
+  return 1;
+}
+
+static DWORD WINAPI ovWndThread(LPVOID lpParam) {
+  OverlayWindow *overlay = (OverlayWindow *)lpParam;
+  MSG msg;
+
+  overlay->font = CreateFontMinifyW(L"Consolas", FONT_HEIGHT);
 
   if (!overlay->font)
-    return 0;
+    goto SetEventAndReturn;
   
+  // Create overlay window.
   overlay->window = CreateWindowExW(
     WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
     L"SkyKeyOverlay",
@@ -83,16 +106,18 @@ DWORD WINAPI ovWndThread(LPVOID lpParam) {
     0, 0, 0, 0,
     NULL,
     NULL,
-    hInstance,
+    overlay->hInstance,
     NULL
   );
   
   if (!overlay->window)
-    return 0;
-  
+    goto SetEventAndReturn;
+
+  SetEvent(overlay->hEvent);
   SetLayeredWindowAttributes(overlay->window, RGB(0, 0, 0), 0, LWA_COLORKEY);
   SetTimer(NULL, 1, 1000 / UPDATE_FREQ, NULL);
 
+  // Message loop.
   while (GetMessageW(&msg, NULL, 0, 0)) {
     if (msg.message == WM_QUIT)
       break;
@@ -103,9 +128,13 @@ DWORD WINAPI ovWndThread(LPVOID lpParam) {
   }
 
   return 0;
+
+SetEventAndReturn:
+  SetEvent(overlay->hEvent);
+  return 0;
 }
 
-LRESULT CALLBACK ovWndProc(
+static LRESULT CALLBACK ovWndProc(
   HWND hWnd,
   UINT message,
   WPARAM wParam,
@@ -158,37 +187,7 @@ RunDefWndProc:
   return DefWindowProcW(hWnd, message, wParam, lParam);
 }
 
-static void setOverlayPos(OverlayWindow *overlay) {
-  RECT rect;
-  int x, y, xL, yL;
-  const int WND_HEIGHT = 200
-    , WND_WIDTH = 200;
-
-  if (!overlay || !overlay->window || !overlay->target)
-    return;
-  
-  if (
-    GetForegroundWindow() != overlay->target
-    && overlay->lastShow != SW_HIDE
-  ) {
-    setOverlayShow(overlay, SW_HIDE);
-    return;
-  }
-
-  if (GetWindowRect(overlay->target, &rect)) {
-    x = rect.left;
-    y = rect.top + (rect.bottom - rect.top - WND_HEIGHT) / 2;
-    xL = rect.right - rect.left;
-    yL = WND_HEIGHT;
-    SetWindowPos(
-      overlay->window,
-      HWND_TOPMOST,
-      x, y, xL, yL,
-      SWP_NOACTIVATE | SWP_NOREDRAW
-    );
-  }
-}
-
+/** Create overlay window and subthread. */
 i32 createOverlay(
   OverlayWindow *overlay,
   HINSTANCE hInstance,
@@ -196,7 +195,6 @@ i32 createOverlay(
 ) {
   WNDCLASSEXW wc = {0};
   static ATOM wca = 0;
-  void *data[3] = {0};
 
   if (!overlay || !hInstance || !targetWindow)
     return 0;
@@ -215,24 +213,23 @@ i32 createOverlay(
     if (!wca)
       return 0;
   }
-
-  data[0] = (void *)overlay;
-  data[1] = (void *)hInstance;
+  overlay->hInstance = hInstance;
   // We need to wait for the window's creation, so this event is
   // created.
-  data[2] = (void *)CreateEventW(NULL, 1, 0, NULL);
+  overlay->hEvent = (void *)CreateEventW(NULL, TRUE, FALSE, NULL);
+
   overlay->subThread = CreateThread(
     NULL,
     0,
     ovWndThread,
-    (LPVOID)data,
+    (LPVOID)overlay,
     0,
     &overlay->threadId
   );
   if (!overlay->subThread)
     return 0;
   
-  //WaitForSingleObject((HANDLE)data[2], INFINITE);
+  WaitForSingleObject(overlay->hEvent, INFINITE);
 
   overlay->target = targetWindow;
   overlay->text = malloc(3 * MAX_PATH * sizeof(wchar_t));
@@ -266,18 +263,10 @@ i32 updateOverlay(
 
   overlay->enabled = enabled;
 
+  // Pass struct overlay to window process.
   SetWindowLongPtrW(overlay->window, GWLP_USERDATA, (LONG_PTR)overlay);
   tickOverlay(overlay);
 
-  return 1;
-}
-
-i32 tickOverlay(OverlayWindow *overlay) {
-  if (!overlay || !overlay->window)
-    return 0;
-  setOverlayPos(overlay);
-  InvalidateRect(overlay->window, NULL, FALSE);
-  UpdateWindow(overlay->window);
   return 1;
 }
 
