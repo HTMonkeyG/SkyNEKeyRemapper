@@ -43,16 +43,25 @@ static void drawTextWithShadow(
     // Transparent text.
     SetTextColor(hdc, 0);
     DrawTextW(hdc, string, -1, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-  } else if (type == 3) {
-    // Bordered. Solid text with shadow, and a solid border.
+  } else if (type == 2) {
+    // Inverted color.
+    temp.bottom = rect->bottom - 1;
+    temp.top = rect->top - 1;
+    temp.left = rect->left - 1;
+    temp.right = rect->right - 1;
+    // The shadow of the text.
+    SetTextColor(hdc, COLOR_2);
+    DrawTextW(hdc, string, -1, &temp, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    // The text. Overlapped the shadow.
+    SetTextColor(hdc, COLOR_1);
+    DrawTextW(hdc, string, -1, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
   }
 }
 
-/** Move the overlay to the target window. */
+/** Move the overlay to the target window, and adjust window size. */
 static void setOverlayPos(OverlayWindow *overlay) {
   RECT rect;
   int x, y, xL, yL;
-  const int WND_HEIGHT = 180;
 
   if (!overlay || !overlay->window || !overlay->target)
     return;
@@ -66,9 +75,9 @@ static void setOverlayPos(OverlayWindow *overlay) {
   }
 
   if (GetWindowRect(overlay->target, &rect)) {
-    x = rect.left;
+    x = (rect.right + rect.left) / 2 - (rect.right - rect.left) / 4;
     y = rect.top + (rect.bottom - rect.top - WND_HEIGHT) / 2;
-    xL = rect.right - rect.left;
+    xL = (rect.right - rect.left) / 2;
     yL = WND_HEIGHT;
     SetWindowPos(
       overlay->window,
@@ -169,7 +178,16 @@ static LRESULT CALLBACK ovWndProc(
     rText.left = 0;
     rText.right = rcClient.right;
     for (i32 yC = 0; yC < 3; yC++) {
-      drawTextWithShadow(hdc, overlay->text[yC], &rText, yC == 1 ? 1 : 0);
+      drawTextWithShadow(
+        hdc,
+        overlay->text[yC],
+        &rText,
+        yC == 1
+          ? overlay->enabled
+            ? 1
+            : 2
+          : 0
+      );
       rText.bottom += height;
       rText.top += height;
     }

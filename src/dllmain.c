@@ -41,10 +41,17 @@ BOOL PeekMessageW_Listener(
 ) {
   BOOL result;
   result = PeekMessageW_old(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
-  if (result && modifyKeyMsgWith(lpMsg, currentScheme) && overlayShow) {
-    // Only when there is a real WM_KEY* message and the overlay is shown,
-    // this function will be executed once.
-    // So the performance will not be bad.
+  if (result && hookEnabled)
+    modifyKeyMsgWith(lpMsg, currentScheme);
+  if (
+    overlayShow 
+    && (
+      lpMsg->message == WM_KEYDOWN
+      || lpMsg->message == WM_LBUTTONDOWN
+      || lpMsg->message == WM_RBUTTONDOWN
+    )
+  ) {
+    // When any key is pressed, hide the overlay window.
     setOverlayShow(&overlay, SW_HIDE);
     overlayShow = 0;
   }
@@ -60,7 +67,17 @@ BOOL PeekMessageA_Listener(
 ) {
   BOOL result;
   result = PeekMessageA_old(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
-  if (result && modifyKeyMsgWith(lpMsg, currentScheme) && overlayShow) {
+  if (result && hookEnabled)
+    modifyKeyMsgWith(lpMsg, currentScheme);
+  if (
+    overlayShow 
+    && (
+      lpMsg->message == WM_KEYDOWN
+      || lpMsg->message == WM_LBUTTONDOWN
+      || lpMsg->message == WM_RBUTTONDOWN
+    )
+  ) {
+    // When any key is pressed, hide the overlay window.
     setOverlayShow(&overlay, SW_HIDE);
     overlayShow = 0;
   }
@@ -149,12 +166,10 @@ void saveData() {
 void switchState() {
   if (hookEnabled) {
     hookEnabled = 0;
-    MH_DisableHook(MH_ALL_HOOKS);
     log(L"Hook disabled.\n");
   } else {
     hookEnabled = 1;
     log(L"Hook enabled.\n");
-    MH_EnableHook(MH_ALL_HOOKS);
   }
 }
 
@@ -315,7 +330,7 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
       // Set timers.
       // The window will continue to display at least until this timer is
       // triggered.
-      minShowTimer = SetTimer(NULL, minShowTimer, 500, NULL);
+      minShowTimer = SetTimer(NULL, minShowTimer, 250, NULL);
       // The window will be displayed until this timer is triggered at most.
       maxShowTimer = SetTimer(NULL, maxShowTimer, 10000, NULL);
     } else if (msg.message == WM_TIMER) {
@@ -348,10 +363,10 @@ BOOL APIENTRY DllMain(
     // Only for debug use.
     // Attach a console window to the game process.
 #ifdef DEBUG_CONSOLE
-    FreeConsole();
-    AllocConsole();
-    freopen("CONOUT$","w+t",stdout);
-    freopen("CONIN$","r+t",stdin);
+    //FreeConsole();
+    //AllocConsole();
+    //freopen("CONOUT$","w+t",stdout);
+    //freopen("CONIN$","r+t",stdin);
 #endif
     log(L"Dll injected.\n");
 
@@ -385,8 +400,7 @@ BOOL APIENTRY DllMain(
       0,
       &hotkeyThreadId
     );
-    if (hookEnabled)
-      MH_EnableHook(MH_ALL_HOOKS);
+    MH_EnableHook(MH_ALL_HOOKS);
   } else if (ul_reason_for_call == DLL_PROCESS_DETACH) {
     // Deinitialze.
     // Kill the subthread and disable all hooks.

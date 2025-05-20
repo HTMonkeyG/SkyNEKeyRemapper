@@ -3,6 +3,7 @@
 #include "macros.h"
 
 #define UPDATE_FREQ 20
+#define WND_HEIGHT 180
 #define FONT_HEIGHT 48
 #define NAME_DEFAULT L"Default"
 #define COLOR_1 RGB(102, 51, 0)
